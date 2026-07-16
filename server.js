@@ -1,8 +1,3 @@
-// Load environment variables FIRST
-import dotenv from 'dotenv';
-dotenv.config();
-
-// Now other imports
 import express from 'express';
 import http from 'http';
 import { Server as SocketIO } from 'socket.io';
@@ -26,16 +21,16 @@ const activeUsers = new Map();
 const chatHistory = [];
 const contactSubmissions = [];
 
-// Email configuration - ADD MORE LOGGING
+// Email configuration - using process.env directly
 const EMAIL_USER = process.env.EMAIL_USER || 'koredejoseph3@gmail.com';
 const EMAIL_PASS = process.env.EMAIL_PASS;
 
 console.log('📧 Email Configuration:');
 console.log(`   User: ${EMAIL_USER}`);
 console.log(`   Password: ${EMAIL_PASS ? '✅ Set' : '❌ NOT SET'}`);
-console.log(`   EMAIL_USER env: ${process.env.EMAIL_USER || 'NOT SET'}`);
-console.log(`   EMAIL_PASS env: ${process.env.EMAIL_PASS ? 'SET' : 'NOT SET'}`);
-console.log(`   All env keys: ${Object.keys(process.env).join(', ')}`);
+console.log(`   Environment Variables:`);
+console.log(`   - EMAIL_USER: ${process.env.EMAIL_USER ? '✅' : '❌'}`);
+console.log(`   - EMAIL_PASS: ${process.env.EMAIL_PASS ? '✅' : '❌'}`);
 
 let transporter;
 let emailConfigured = false;
@@ -43,7 +38,6 @@ let emailConfigured = false;
 if (EMAIL_USER && EMAIL_PASS) {
   try {
     const cleanPass = EMAIL_PASS.replace(/\s/g, '');
-    console.log(`   Password length: ${cleanPass.length} characters`);
     
     transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -53,16 +47,19 @@ if (EMAIL_USER && EMAIL_PASS) {
       }
     });
     
-    transporter.verify((error, success) => {
-      if (error) {
-        console.error('❌ Email verification failed:', error.message);
-        console.error('   Error code:', error.code);
-        console.error('   Error command:', error.command);
-        emailConfigured = false;
-      } else {
-        console.log('✅ Email server ready!');
-        emailConfigured = true;
-      }
+    // Verify connection
+    await new Promise((resolve, reject) => {
+      transporter.verify((error, success) => {
+        if (error) {
+          console.error('❌ Email verification failed:', error.message);
+          emailConfigured = false;
+          reject(error);
+        } else {
+          console.log('✅ Email server ready!');
+          emailConfigured = true;
+          resolve(success);
+        }
+      });
     });
   } catch (error) {
     console.error('❌ Email setup error:', error.message);
@@ -70,8 +67,6 @@ if (EMAIL_USER && EMAIL_PASS) {
   }
 } else {
   console.log('⚠️ Email credentials not set. Emails will be logged to console only.');
-  console.log(`   EMAIL_USER: ${EMAIL_USER ? 'SET' : 'MISSING'}`);
-  console.log(`   EMAIL_PASS: ${EMAIL_PASS ? 'SET' : 'MISSING'}`);
 }
 
 // Contact form endpoint
@@ -100,17 +95,12 @@ app.post('/api/contact', async (req, res) => {
   
   contactSubmissions.push(submission);
   console.log('✅ Contact form saved locally');
-  console.log(`📧 Email configured: ${emailConfigured}`);
-  console.log(`📧 Transporter exists: ${!!transporter}`);
   
   let emailSent = false;
-  let emailError = null;
   
   if (transporter && emailConfigured) {
     try {
       console.log('📧 Attempting to send email...');
-      console.log(`   From: ${EMAIL_USER}`);
-      console.log(`   To: koredejoseph3@gmail.com`);
       
       const mailOptions = {
         from: `"Web Minds Contact" <${EMAIL_USER}>`,
@@ -132,24 +122,14 @@ app.post('/api/contact', async (req, res) => {
       console.log(`   Message ID: ${info.messageId}`);
       emailSent = true;
     } catch (error) {
-      console.error('❌ Email sending failed:');
-      console.error('   Error:', error.message);
-      console.error('   Code:', error.code || 'N/A');
-      console.error('   Command:', error.command || 'N/A');
-      console.error('   Response:', error.response || 'N/A');
-      emailError = error.message;
+      console.error('❌ Email sending failed:', error.message);
     }
-  } else {
-    console.log('⚠️ Email not configured. Message saved locally.');
-    console.log(`   Reason: ${!transporter ? 'Transporter not created' : ''} ${!emailConfigured ? 'Email not configured' : ''}`);
   }
   
-  // Return response
   res.status(200).json({ 
     success: true, 
-    message: 'Message received successfully! We\'ll get back to you within 24 hours.',
-    emailSent: emailSent,
-    emailError: emailError || undefined
+    message: 'Message received successfully!',
+    emailSent: emailSent
   });
 });
 
@@ -158,35 +138,24 @@ app.get('/api/contacts', (req, res) => {
   res.json(contactSubmissions);
 });
 
-// Test email endpoint with more logging
+// Test email endpoint
 app.post('/api/test-email', async (req, res) => {
-  console.log('🧪 Test email endpoint called');
-  console.log(`   Email configured: ${emailConfigured}`);
-  console.log(`   Transporter exists: ${!!transporter}`);
-  
   if (!transporter || !emailConfigured) {
-    console.log('❌ Test failed: Email not configured');
     return res.status(400).json({ 
       error: 'Email not configured. Set EMAIL_USER and EMAIL_PASS environment variables.',
-      configured: false,
-      emailUser: process.env.EMAIL_USER ? 'SET' : 'MISSING',
-      emailPass: process.env.EMAIL_PASS ? 'SET' : 'MISSING'
+      configured: false
     });
   }
   
   try {
-    console.log('📧 Sending test email...');
     const info = await transporter.sendMail({
       from: `"Test" <${EMAIL_USER}>`,
       to: 'koredejoseph3@gmail.com',
       subject: 'Test Email from Web Minds Server',
-      text: `If you receive this, your email configuration is working!\n\nTime: ${new Date().toLocaleString()}\nServer: Render`
+      text: 'If you receive this, your email configuration is working!'
     });
-    console.log('✅ Test email sent successfully!');
-    console.log(`   Message ID: ${info.messageId}`);
     res.json({ success: true, messageId: info.messageId, configured: true });
   } catch (error) {
-    console.error('❌ Test email failed:', error.message);
     res.status(500).json({ error: error.message, configured: false });
   }
 });
