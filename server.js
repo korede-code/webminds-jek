@@ -21,7 +21,7 @@ const activeUsers = new Map();
 const chatHistory = [];
 const contactSubmissions = [];
 
-// Email configuration - using process.env directly
+// Email configuration - Force IPv4
 const EMAIL_USER = process.env.EMAIL_USER || 'koredejoseph3@gmail.com';
 const EMAIL_PASS = process.env.EMAIL_PASS;
 
@@ -36,24 +36,20 @@ if (EMAIL_USER && EMAIL_PASS) {
   try {
     const cleanPass = EMAIL_PASS.replace(/\s/g, '');
     
-    // Force IPv4 by using explicit SMTP settings with 'family: 4'
     transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // true for 465, false for other ports
+      port: 465,
+      secure: true, // SSL
       auth: {
         user: EMAIL_USER,
         pass: cleanPass
       },
+      family: 4, // Force IPv4
+      connectionTimeout: 15000,
+      socketTimeout: 15000,
       tls: {
         rejectUnauthorized: false
-      },
-      // Force IPv4
-      family: 4,
-      // Connection timeout
-      connectionTimeout: 10000,
-      // Increase socket timeout
-      socketTimeout: 10000
+      }
     });
     
     // Verify connection
@@ -73,6 +69,15 @@ if (EMAIL_USER && EMAIL_PASS) {
 } else {
   console.log('⚠️ Email credentials not set. Emails will be logged to console only.');
 }
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'healthy', 
+    emailConfigured,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Contact form endpoint
 app.post('/api/contact', async (req, res) => {
@@ -127,8 +132,12 @@ app.post('/api/contact', async (req, res) => {
       console.log(`   Message ID: ${info.messageId}`);
       emailSent = true;
     } catch (error) {
-      console.error('❌ Email sending failed:', error.message);
+      console.error('❌ Email sending failed:');
+      console.error('   Error:', error.message);
+      if (error.code) console.error('   Code:', error.code);
     }
+  } else {
+    console.log('⚠️ Email not configured. Message saved locally.');
   }
   
   res.status(200).json({ 
@@ -157,10 +166,12 @@ app.post('/api/test-email', async (req, res) => {
       from: `"Test" <${EMAIL_USER}>`,
       to: 'koredejoseph3@gmail.com',
       subject: 'Test Email from Web Minds Server',
-      text: 'If you receive this, your email configuration is working!'
+      text: `If you receive this, your email configuration is working!\n\nTime: ${new Date().toLocaleString()}\nServer: Render`
     });
+    console.log('✅ Test email sent successfully!');
     res.json({ success: true, messageId: info.messageId, configured: true });
   } catch (error) {
+    console.error('❌ Test email failed:', error.message);
     res.status(500).json({ error: error.message, configured: false });
   }
 });
@@ -228,11 +239,12 @@ async function generateBotResponse(userMessage) {
   }
 }
 
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Server is running on port ${PORT}`);
   console.log(`📡 Chat server: ws://localhost:${PORT}`);
   console.log(`📝 Contact form: POST http://localhost:${PORT}/api/contact`);
   console.log(`📊 View submissions: GET http://localhost:${PORT}/api/contacts`);
-  console.log(`🧪 Test email: POST http://localhost:${PORT}/api/test-email\n`);
+  console.log(`🧪 Test email: POST http://localhost:${PORT}/api/test-email`);
+  console.log(`💚 Health check: GET http://localhost:${PORT}/health\n`);
 });
