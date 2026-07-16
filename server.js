@@ -28,9 +28,6 @@ const EMAIL_PASS = process.env.EMAIL_PASS;
 console.log('📧 Email Configuration:');
 console.log(`   User: ${EMAIL_USER}`);
 console.log(`   Password: ${EMAIL_PASS ? '✅ Set' : '❌ NOT SET'}`);
-console.log(`   Environment Variables:`);
-console.log(`   - EMAIL_USER: ${process.env.EMAIL_USER ? '✅' : '❌'}`);
-console.log(`   - EMAIL_PASS: ${process.env.EMAIL_PASS ? '✅' : '❌'}`);
 
 let transporter;
 let emailConfigured = false;
@@ -39,27 +36,35 @@ if (EMAIL_USER && EMAIL_PASS) {
   try {
     const cleanPass = EMAIL_PASS.replace(/\s/g, '');
     
+    // Force IPv4 by using explicit SMTP settings with 'family: 4'
     transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // true for 465, false for other ports
       auth: {
         user: EMAIL_USER,
         pass: cleanPass
-      }
+      },
+      tls: {
+        rejectUnauthorized: false
+      },
+      // Force IPv4
+      family: 4,
+      // Connection timeout
+      connectionTimeout: 10000,
+      // Increase socket timeout
+      socketTimeout: 10000
     });
     
     // Verify connection
-    await new Promise((resolve, reject) => {
-      transporter.verify((error, success) => {
-        if (error) {
-          console.error('❌ Email verification failed:', error.message);
-          emailConfigured = false;
-          reject(error);
-        } else {
-          console.log('✅ Email server ready!');
-          emailConfigured = true;
-          resolve(success);
-        }
-      });
+    transporter.verify((error, success) => {
+      if (error) {
+        console.error('❌ Email verification failed:', error.message);
+        emailConfigured = false;
+      } else {
+        console.log('✅ Email server ready!');
+        emailConfigured = true;
+      }
     });
   } catch (error) {
     console.error('❌ Email setup error:', error.message);
