@@ -22,7 +22,7 @@ const chatHistory = [];
 const contactSubmissions = [];
 
 // Email configuration - Force IPv4
-const EMAIL_USER = process.env.EMAIL_USER || 'koredejoseph3@gmail.com';
+const EMAIL_USER = process.env.EMAIL_USER || 'emmakorede21@gmail.com';
 const EMAIL_PASS = process.env.EMAIL_PASS;
 
 console.log('📧 Email Configuration:');
@@ -37,31 +37,25 @@ if (EMAIL_USER && EMAIL_PASS) {
     const cleanPass = EMAIL_PASS.replace(/\s/g, '');
     
     transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
+      service: 'gmail',
       port: 465,
-      secure: true, // SSL
       auth: {
         user: EMAIL_USER,
         pass: cleanPass
       },
-      family: 4, // Force IPv4
-      connectionTimeout: 15000,
-      socketTimeout: 15000,
-      tls: {
-        rejectUnauthorized: false
-      }
     });
     
     // Verify connection
-    transporter.verify((error, success) => {
-      if (error) {
-        console.error('❌ Email verification failed:', error.message);
-        emailConfigured = false;
-      } else {
-        console.log('✅ Email server ready!');
-        emailConfigured = true;
-      }
-    });
+    try {
+      await transporter.verify();
+      console.log('✅ Email server ready!');
+      emailConfigured = true;
+    } catch (verifyError) {
+      console.error('❌ Email verification failed:', verifyError.message);
+      console.log('💡 Make sure you\'re using an App Password, not your regular Gmail password');
+      console.log('   Generate one at: https://myaccount.google.com/apppasswords');
+      emailConfigured = false;
+    }
   } catch (error) {
     console.error('❌ Email setup error:', error.message);
     emailConfigured = false;
@@ -114,7 +108,7 @@ app.post('/api/contact', async (req, res) => {
       
       const mailOptions = {
         from: `"Web Minds Contact" <${EMAIL_USER}>`,
-        to: 'koredejoseph3@gmail.com',
+        to: 'emmakorede21@gmail.com',
         subject: `New Contact: ${projectType} from ${name}`,
         html: `
           <h2>New Contact Form Submission</h2>
@@ -164,7 +158,7 @@ app.post('/api/test-email', async (req, res) => {
   try {
     const info = await transporter.sendMail({
       from: `"Test" <${EMAIL_USER}>`,
-      to: 'koredejoseph3@gmail.com',
+      to: 'emmakorede21@gmail.com',
       subject: 'Test Email from Web Minds Server',
       text: `If you receive this, your email configuration is working!\n\nTime: ${new Date().toLocaleString()}\nServer: Render`
     });
