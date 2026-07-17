@@ -21,48 +21,6 @@ const activeUsers = new Map();
 const chatHistory = [];
 const contactSubmissions = [];
 
-// Email configuration - Force IPv4
-const EMAIL_USER = process.env.EMAIL_USER || 'emmakorede21@gmail.com';
-const EMAIL_PASS = process.env.EMAIL_PASS;
-
-console.log('📧 Email Configuration:');
-console.log(`   User: ${EMAIL_USER}`);
-console.log(`   Password: ${EMAIL_PASS ? '✅ Set' : '❌ NOT SET'}`);
-
-let transporter;
-let emailConfigured = false;
-
-if (EMAIL_USER && EMAIL_PASS) {
-  try {
-    const cleanPass = EMAIL_PASS.replace(/\s/g, '');
-    
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
-      port: 465,
-      auth: {
-        user: EMAIL_USER,
-        pass: cleanPass
-      },
-    });
-    
-    // Verify connection
-    try {
-      await transporter.verify();
-      console.log('✅ Email server ready!');
-      emailConfigured = true;
-    } catch (verifyError) {
-      console.error('❌ Email verification failed:', verifyError.message);
-      console.log('💡 Make sure you\'re using an App Password, not your regular Gmail password');
-      console.log('   Generate one at: https://myaccount.google.com/apppasswords');
-      emailConfigured = false;
-    }
-  } catch (error) {
-    console.error('❌ Email setup error:', error.message);
-    emailConfigured = false;
-  }
-} else {
-  console.log('⚠️ Email credentials not set. Emails will be logged to console only.');
-}
 
 // Health check
 app.get('/health', (req, res) => {
@@ -73,101 +31,9 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Contact form endpoint
-app.post('/api/contact', async (req, res) => {
-  const { name, email, projectType, message } = req.body;
-  
-  console.log('\n📝 Received contact form submission:', { name, email, projectType, message });
-  
-  if (!name || !email || !projectType || !message) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-  
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return res.status(400).json({ error: 'Invalid email address' });
-  }
-  
-  const submission = {
-    id: Date.now(),
-    name,
-    email,
-    projectType,
-    message,
-    timestamp: new Date()
-  };
-  
-  contactSubmissions.push(submission);
-  console.log('✅ Contact form saved locally');
-  
-  let emailSent = false;
-  
-  if (transporter && emailConfigured) {
-    try {
-      console.log('📧 Attempting to send email...');
-      
-      const mailOptions = {
-        from: `"Web Minds Contact" <${EMAIL_USER}>`,
-        to: 'emmakorede21@gmail.com',
-        subject: `New Contact: ${projectType} from ${name}`,
-        html: `
-          <h2>New Contact Form Submission</h2>
-          <p><strong>Name:</strong> ${name}</p>
-          <p><strong>Email:</strong> ${email}</p>
-          <p><strong>Project Type:</strong> ${projectType}</p>
-          <p><strong>Message:</strong> ${message}</p>
-          <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
-        `,
-        replyTo: email
-      };
-      
-      const info = await transporter.sendMail(mailOptions);
-      console.log('✅ Email sent successfully!');
-      console.log(`   Message ID: ${info.messageId}`);
-      emailSent = true;
-    } catch (error) {
-      console.error('❌ Email sending failed:');
-      console.error('   Error:', error.message);
-      if (error.code) console.error('   Code:', error.code);
-    }
-  } else {
-    console.log('⚠️ Email not configured. Message saved locally.');
-  }
-  
-  res.status(200).json({ 
-    success: true, 
-    message: 'Message received successfully!',
-    emailSent: emailSent
-  });
-});
-
 // Get all submissions
 app.get('/api/contacts', (req, res) => {
   res.json(contactSubmissions);
-});
-
-// Test email endpoint
-app.post('/api/test-email', async (req, res) => {
-  if (!transporter || !emailConfigured) {
-    return res.status(400).json({ 
-      error: 'Email not configured. Set EMAIL_USER and EMAIL_PASS environment variables.',
-      configured: false
-    });
-  }
-  
-  try {
-    const info = await transporter.sendMail({
-      from: `"Test" <${EMAIL_USER}>`,
-      to: 'emmakorede21@gmail.com',
-      subject: 'Test Email from Web Minds Server',
-      text: `If you receive this, your email configuration is working!\n\nTime: ${new Date().toLocaleString()}\nServer: Render`
-    });
-    console.log('✅ Test email sent successfully!');
-    res.json({ success: true, messageId: info.messageId, configured: true });
-  } catch (error) {
-    console.error('❌ Test email failed:', error.message);
-    res.status(500).json({ error: error.message, configured: false });
-  }
 });
 
 // Socket.io chat handling
